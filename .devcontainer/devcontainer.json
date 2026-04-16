@@ -1,0 +1,19 @@
+{
+  "name": "GitSync",
+  "dockerComposeFile": "../docker-compose.yml",
+  "service": "app",
+  "workspaceFolder": "/workspace",
+  "forwardPorts": [3000, 8787],
+  "remoteUser": "developer",
+  "postCreateCommand": "bun install && cp -n .env.example .env.local && bunx playwright install chromium && bun run packages/db/src/migrate.ts",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "oven.bun-vscode",
+        "bradlc.vscode-tailwindcss",
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode"
+      ]
+    }
+  }
+}

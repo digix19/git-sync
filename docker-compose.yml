@@ -1,0 +1,16 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: gitsync-dev
+    volumes:
+      - .:/workspace
+    working_dir: /workspace
+    ports:
+      - "3000:3000"
+      - "8787:8787"
+    environment:
+      - NODE_ENV=development
+    command: sleep infinity
+    user: "1000:1000"
