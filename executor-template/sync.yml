@@ -1,0 +1,88 @@
+name: GitSync Executor
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Poll for jobs
+        id: poll
+        run: |
+          RESPONSE=$(curl -s -X POST "${API_BASE_URL}/api/sync/poll" \
+            -H "Authorization: Bearer ${EXECUTOR_API_KEY}" \
+            -H "Content-Type: application/json" \
+            -d '{"limit":10}')
+          echo "jobs=${RESPONSE}" >> "$GITHUB_OUTPUT"
+        env:
+          API_BASE_URL: ${{ secrets.API_BASE_URL }}
+          EXECUTOR_API_KEY: ${{ secrets.EXECUTOR_API_KEY }}
+
+      - name: Process jobs
+        if: steps.poll.outputs.jobs != '[]'
+        run: |
+          jobs='${{ steps.poll.outputs.jobs }}'
+          echo "$jobs" | jq -c '.[]' | while read -r job; do
+            job_id=$(echo "$job" | jq -r '.id')
+            source_url=$(echo "$job" | jq -r '.sourceUrl')
+            dest_url=$(echo "$job" | jq -r '.destUrl')
+            trace_id=$(echo "$job" | jq -r '.traceId')
+            callback_url=$(echo "$job" | jq -r '.callbackUrl')
+
+            echo "::group::Job $job_id (trace=$trace_id)"
+
+            # Fetch secrets
+            SECRETS=$(curl -s -X POST "${API_BASE_URL}/api/sync/secrets" \
+              -H "Authorization: Bearer ${EXECUTOR_API_KEY}" \
+              -H "Content-Type: application/json" \
+              -d "{\"jobId\":\"$job_id\"}")
+            source_pat=$(echo "$SECRETS" | jq -r '.sourcePat')
+            dest_pat=$(echo "$SECRETS" | jq -r '.destPat')
+
+            # Mask secrets
+            echo "::add-mask::$source_pat"
+            echo "::add-mask::$dest_pat"
+
+            # Build authenticated URLs
+            source_auth_url=$(echo "$source_url" | sed "s|://|://oauth2:${source_pat}@|")
+            dest_auth_url=$(echo "$dest_url" | sed "s|://|://oauth2:${dest_pat}@|")
+
+            TMPDIR=$(mktemp -d)
+            set +e
+            git clone --mirror "$source_auth_url" "$TMPDIR/repo.git" 2>&1 | tee "$TMPDIR/log.txt"
+            CLONE_EXIT=${PIPESTATUS[0]}
+
+            PUSH_EXIT=0
+            if [ $CLONE_EXIT -eq 0 ]; then
+              cd "$TMPDIR/repo.git"
+              git push --mirror "$dest_auth_url" 2>&1 | tee -a "$TMPDIR/log.txt"
+              PUSH_EXIT=${PIPESTATUS[0]}
+            fi
+            set -e
+
+            if [ $CLONE_EXIT -eq 0 ] && [ $PUSH_EXIT -eq 0 ]; then
+              status="success"
+            else
+              status="failed"
+            fi
+
+            log_output=$(cat "$TMPDIR/log.txt" | base64 -w 0)
+            timestamp=$(date -u +%s)
+            signature=$(printf "%s%s" "$job_id" "$timestamp" | openssl dgst -sha256 -hmac "$WORKER_SECRET" | sed 's/^.* //')
+
+            curl -s -X POST "$callback_url" \
+              -H "Content-Type: application/json" \
+              -H "X-Signature: $signature" \
+              -H "X-Timestamp: $timestamp" \
+              -d "{\"jobId\":\"$job_id\",\"status\":\"$status\",\"output\":\"$log_output\",\"errorMessage\":\"\"}"
+
+            rm -rf "$TMPDIR"
+            echo "::endgroup::"
+          done
+        env:
+          API_BASE_URL: ${{ secrets.API_BASE_URL }}
+          EXECUTOR_API_KEY: ${{ secrets.EXECUTOR_API_KEY }}
+          WORKER_SECRET: ${{ secrets.WORKER_SECRET }}

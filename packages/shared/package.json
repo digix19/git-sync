@@ -1,0 +1,19 @@
+{
+  "name": "@gitsync/shared",
+  "version": "0.1.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./crypto": "./src/crypto.ts",
+    "./hmac": "./src/hmac.ts",
+    "./password": "./src/password.ts",
+    "./types": "./src/types.ts"
+  },
+  "dependencies": {
+    "zod": "^3.24.0",
+    "@noble/hashes": "^1.7.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.0"
+  }
+}

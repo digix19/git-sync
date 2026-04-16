@@ -1,0 +1,23 @@
+{
+  "name": "@gitsync/db",
+  "version": "0.1.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./schema": "./src/schema.ts",
+    "./client": "./src/client.ts"
+  },
+  "scripts": {
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "bun run src/migrate.ts",
+    "db:studio": "drizzle-kit studio"
+  },
+  "dependencies": {
+    "drizzle-orm": "^0.41.0",
+    "@libsql/client": "^0.15.0"
+  },
+  "devDependencies": {
+    "drizzle-kit": "^0.30.0",
+    "typescript": "^5.8.0"
+  }
+}

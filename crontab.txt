@@ -1,0 +1,5 @@
+# Example crontab for a self-hosted VPS
+# Sync every 6 hours
+0 */6 * * * curl -s -X POST "${API_BASE_URL}/api/cron/sync" -H "Authorization: Bearer ${CRON_SECRET}" > /dev/null 2>&1
+# Cleanup weekly on Sunday at 2 AM
+0 2 * * 0 curl -s -X POST "${API_BASE_URL}/api/cron/cleanup" -H "Authorization: Bearer ${CRON_SECRET}" > /dev/null 2>&1

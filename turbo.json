@@ -1,0 +1,38 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "globalDependencies": ["**/.env.*local"],
+  "globalEnv": [
+    "NODE_ENV",
+    "DATABASE_URL",
+    "DATABASE_AUTH_TOKEN",
+    "ENCRYPTION_KEY",
+    "WORKER_SECRET",
+    "EXECUTOR_API_KEY",
+    "API_BASE_URL",
+    "NEXT_PUBLIC_API_BASE_URL",
+    "CRON_SECRET"
+  ],
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": [".next/**", "!.next/cache/**", "dist/**"]
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true
+    },
+    "lint": {
+      "cache": false
+    },
+    "db:generate": {
+      "cache": false
+    },
+    "db:migrate": {
+      "cache": false
+    },
+    "db:studio": {
+      "cache": false,
+      "persistent": true
+    }
+  }
+}
