@@ -4,10 +4,11 @@ import { z } from "zod";
 import { db } from "../db.js";
 import { authMiddleware, requireApiKey } from "../middleware.js";
 import { enqueueSync, getPendingJobs } from "../lib/sync.js";
-import { syncQueue, syncLock, syncLog, syncSecret } from "@gitsync/db/schema";
-import { eq, and, lt } from "drizzle-orm";
+import { syncQueue, syncLock, syncLog, syncSecret, setting } from "@gitsync/db/schema";
+import { eq, and, lt, desc } from "drizzle-orm";
 import { verify } from "@gitsync/shared/hmac";
 import { repository, destination } from "@gitsync/db/schema";
+import { notifyTelegram } from "../lib/notify.js";
 
 const triggerSchema = z.object({
   repositoryId: z.string().min(1),
@@ -45,7 +46,8 @@ export const syncRouter = new Hono()
       .from(syncLog)
       .innerJoin(repository, eq(syncLog.repositoryId, repository.id))
       .where(eq(repository.userId, u.id))
-      .orderBy(syncLog.createdAt)
+      .orderBy(desc(syncLog.createdAt))
+      .limit(100)
       .all();
     return c.json({ logs: rows });
   })
@@ -133,6 +135,53 @@ export const syncRouter = new Hono()
         );
     }
 
-    // TODO: Telegram notification on failure
+    // Telegram notification on failure
+    if (body.status === "failed") {
+      try {
+        const logEntry = await db
+          .select({
+            userId: repository.userId,
+            traceId: syncLog.traceId,
+            errorMessage: syncLog.errorMessage,
+          })
+          .from(syncLog)
+          .innerJoin(repository, eq(syncLog.repositoryId, repository.id))
+          .where(eq(syncLog.id, body.jobId))
+          .get();
+
+        if (logEntry) {
+          const userSetting = await db
+            .select()
+            .from(setting)
+            .where(eq(setting.userId, logEntry.userId))
+            .get();
+
+          if (
+            userSetting &&
+            userSetting.notifyOnFailure &&
+            userSetting.telegramBotToken &&
+            userSetting.telegramChatId
+          ) {
+            const message = [
+              "<b>GitSync Failure</b>",
+              `Job ID: <code>${body.jobId}</code>`,
+              `Trace ID: <code>${logEntry.traceId}</code>`,
+              logEntry.errorMessage ? `Error: ${logEntry.errorMessage}` : "",
+            ]
+              .filter(Boolean)
+              .join("\n");
+
+            await notifyTelegram(
+              userSetting.telegramBotToken,
+              userSetting.telegramChatId,
+              message
+            );
+          }
+        }
+      } catch (err) {
+        console.error("Failed to send Telegram notification:", err);
+      }
+    }
+
     return c.json({ success: true });
   });
