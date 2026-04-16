@@ -60,6 +60,7 @@ export default function SettingsPage() {
           <div>
             <label className="block text-sm font-medium mb-1">Telegram Chat ID</label>
             <input
+              name="chatId"
               className="w-full border px-3 py-2 rounded"
               value={form.telegramChatId}
               onChange={(e) => setForm({ ...form, telegramChatId: e.target.value })}
